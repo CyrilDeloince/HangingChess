@@ -98,9 +98,6 @@ body {
 }
 
 .lang-switch {
-    position: absolute;
-    top: 20px;
-    right: 20px;
     display: flex;
     gap: 8px;
 }
@@ -488,13 +485,19 @@ body {
     line-height: 1;
     z-index: 1;
     user-select: none;
-    filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.3));
+    transition: transform 0.1s;
 }
 
 .chess-piece.clickable { cursor: pointer; }
-.chess-piece.clickable:hover { transform: scale(1.15); filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5)); }
-.chess-piece.white-piece { filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.4)); }
-.chess-piece.black-piece { filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3)); }
+.chess-piece.clickable:hover { transform: scale(1.15); }
+.chess-piece.white-piece {
+    color: #fff;
+    filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000) drop-shadow(1px 1px 2px rgba(0,0,0,0.6));
+}
+.chess-piece.black-piece {
+    color: #1a1a1a;
+    filter: drop-shadow(0 0 1px rgba(255,255,255,0.2)) drop-shadow(1px 1px 1px rgba(0,0,0,0.4));
+}
 
 .board-label {
     position: absolute;
@@ -868,6 +871,123 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ═══════════ TOP BAR ═══════════ */
+.top-bar {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.sound-toggle { font-size: 20px; }
+
+/* ═══════════ TIME SELECTOR ═══════════ */
+.time-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 24px;
+    max-width: 400px;
+}
+
+.time-btn {
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+}
+.time-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+}
+.time-btn.active {
+    border-color: var(--accent-gold);
+    color: var(--accent-gold);
+    background: rgba(240,192,64,0.1);
+}
+
+/* ═══════════ CLOCK ═══════════ */
+.clock {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    margin: 6px 0;
+    width: 100%;
+    max-width: 480px;
+}
+
+.clock.hidden { display: none; }
+
+.clock-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.clock-time {
+    font-family: monospace;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: 2px;
+}
+
+.clock.active-clock {
+    border-color: var(--accent-gold);
+    background: rgba(240,192,64,0.08);
+}
+
+.clock.active-clock .clock-time {
+    color: var(--accent-gold);
+}
+
+.clock.low-time {
+    border-color: var(--accent-red);
+    background: rgba(244,67,54,0.1);
+    animation: clockPulse 1s ease-in-out infinite;
+}
+
+.clock.low-time .clock-time {
+    color: var(--accent-red);
+}
+
+@keyframes clockPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* ═══════════ INVITE LINK ═══════════ */
+#btn-copy-link {
+    width: 100%;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.invite-text {
+    font-size: 18px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.small-logo .logo-pieces { font-size: 36px; letter-spacing: 8px; }
+.small-logo .title.small { font-size: 32px; }
+
+#join-link-page .setup-container {
+    justify-content: center;
+}
 
 /* ═══════════ RESPONSIVE ═══════════ */
 @media (max-width: 1024px) {

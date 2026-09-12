@@ -43,12 +43,13 @@ function randomWord(lang) {
 io.on('connection', (socket) => {
     console.log(`Player connected: ${socket.id}`);
 
-    socket.on('create-room', ({ lang }) => {
+    socket.on('create-room', ({ lang, timeControl }) => {
         let code;
         do { code = generateRoomCode(); } while (rooms[code]);
         rooms[code] = {
             players: [socket],
             lang: lang || 'en',
+            timeControl: timeControl || 0,
             words: {},
             started: false
         };
@@ -76,8 +77,8 @@ io.on('connection', (socket) => {
         room.words = { 0: word0, 1: word1 };
         room.started = true;
 
-        room.players[0].emit('game-start', { color: 'w', hangmanWord: word0, opponentHangmanLength: word1.length });
-        room.players[1].emit('game-start', { color: 'b', hangmanWord: word1, opponentHangmanLength: word0.length });
+        room.players[0].emit('game-start', { color: 'w', hangmanWord: word0, opponentHangmanLength: word1.length, timeControl: room.timeControl || 0 });
+        room.players[1].emit('game-start', { color: 'b', hangmanWord: word1, opponentHangmanLength: word0.length, timeControl: room.timeControl || 0 });
         console.log(`Game started in room ${code}`);
     });
 
@@ -124,8 +125,8 @@ io.on('connection', (socket) => {
         const word0 = randomWord(useLang);
         const word1 = randomWord(useLang);
         room.words = { 0: word0, 1: word1 };
-        room.players[0].emit('game-start', { color: 'b', hangmanWord: word0, opponentHangmanLength: word1.length });
-        room.players[1].emit('game-start', { color: 'w', hangmanWord: word1, opponentHangmanLength: word0.length });
+        room.players[0].emit('game-start', { color: 'b', hangmanWord: word0, opponentHangmanLength: word1.length, timeControl: room.timeControl || 0 });
+        room.players[1].emit('game-start', { color: 'w', hangmanWord: word1, opponentHangmanLength: word0.length, timeControl: room.timeControl || 0 });
     });
 
     socket.on('chat-message', (data) => {

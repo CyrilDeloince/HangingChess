@@ -306,6 +306,65 @@ function getBestChessMove(chess, difficulty) {
     return bestMove;
 }
 
+/* ───────────────────── GAME CLOCK ───────────────────── */
+class GameClock {
+    constructor(timeMs) {
+        this.white = timeMs;
+        this.black = timeMs;
+        this.active = null;
+        this.lastTick = null;
+        this.interval = null;
+        this.onTick = null;
+        this.onTimeout = null;
+    }
+
+    start(color) {
+        this.active = color;
+        this.lastTick = Date.now();
+        if (!this.interval) {
+            this.interval = setInterval(() => this.tick(), 100);
+        }
+    }
+
+    tick() {
+        if (!this.active || !this.lastTick) return;
+        const now = Date.now();
+        const elapsed = now - this.lastTick;
+        this.lastTick = now;
+
+        if (this.active === 'w') {
+            this.white = Math.max(0, this.white - elapsed);
+            if (this.white <= 0) { this.stop(); if (this.onTimeout) this.onTimeout('w'); return; }
+        } else {
+            this.black = Math.max(0, this.black - elapsed);
+            if (this.black <= 0) { this.stop(); if (this.onTimeout) this.onTimeout('b'); return; }
+        }
+        if (this.onTick) this.onTick();
+    }
+
+    switchTo(color) {
+        this.active = color;
+        this.lastTick = Date.now();
+    }
+
+    pause() { this.active = null; }
+
+    stop() {
+        this.active = null;
+        if (this.interval) { clearInterval(this.interval); this.interval = null; }
+    }
+
+    getTime(color) { return color === 'w' ? this.white : this.black; }
+
+    formatTime(color) {
+        const ms = this.getTime(color);
+        const totalSec = Math.max(0, Math.ceil(ms / 1000));
+        const min = Math.floor(totalSec / 60);
+        const sec = totalSec % 60;
+        return `${min}:${sec.toString().padStart(2, '0')}`;
+    }
+}
+
 /* ───────────────────── COMBINED GAME ───────────────────── */
 class CombinedGame {
     constructor(opts = {}) {
@@ -326,6 +385,19 @@ class CombinedGame {
         this.lastCapture = false;
         this.pendingTTTPlayer = null;
         this.opponentHangmanDisplay = this.opponentHangman.getDisplay();
+        this.timeControl = opts.timeControl || 0;
+        this.clock = null;
+        this.clockStarted = false;
+        if (this.timeControl > 0) {
+            this.clock = new GameClock(this.timeControl);
+            this.clock.onTimeout = (color) => {
+                const isPlayerTimeout = color === this.playerColor;
+                this.endGame(
+                    isPlayerTimeout ? this.opponentColor : this.playerColor,
+                    isPlayerTimeout ? 'loseByTimeout' : 'winByTimeout'
+                );
+            };
+        }
         this.onUpdate = opts.onUpdate || (() => {});
         this.onPhaseChange = opts.onPhaseChange || (() => {});
         this.onGameOver = opts.onGameOver || (() => {});
@@ -360,6 +432,11 @@ class CombinedGame {
 
         const move = this.chess.move({ from, to, promotion: promotion || 'q' });
         if (!move) return null;
+
+        if (this.clock && !this.clockStarted) {
+            this.clock.start(this.activeTurnColor);
+            this.clockStarted = true;
+        }
 
         this.lastCapture = !!move.captured;
         this.moveLog.push({
@@ -475,6 +552,9 @@ class CombinedGame {
         this.phase = 'chess';
         this.pendingTTTPlayer = null;
         this.lastCapture = false;
+        if (this.clock && this.clockStarted) {
+            this.clock.switchTo(this.activeTurnColor);
+        }
         this.onPhaseChange('chess');
     }
 
@@ -482,6 +562,7 @@ class CombinedGame {
         this.gameOver = true;
         this.winner = winnerColor;
         this.winReason = reason;
+        if (this.clock) this.clock.stop();
         this.onGameOver({ winner: winnerColor, reason });
     }
 

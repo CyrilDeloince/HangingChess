@@ -12,9 +12,12 @@
 <!-- ═══════════ LANDING PAGE ═══════════ -->
 <div id="landing-page" class="view">
     <div class="landing-container">
-        <div class="lang-switch">
-            <button class="lang-btn" data-lang="fr">🇫🇷 FR</button>
-            <button class="lang-btn" data-lang="en">🇬🇧 EN</button>
+        <div class="top-bar">
+            <div class="lang-switch">
+                <button class="lang-btn" data-lang="fr">🇫🇷 FR</button>
+                <button class="lang-btn" data-lang="en">🇬🇧 EN</button>
+            </div>
+            <button id="btn-sound-toggle" class="btn btn-ghost btn-small sound-toggle">🔊</button>
         </div>
         <div class="logo-section">
             <div class="logo-pieces">♔ ⭕ ☠️</div>
@@ -34,6 +37,18 @@
 <div id="bot-setup" class="view hidden">
     <div class="setup-container">
         <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+
+        <h2 data-i18n="selectTime">Choisir le temps</h2>
+        <div class="time-buttons" id="bot-time-buttons">
+            <button class="time-btn btn" data-time="60000" data-i18n="bullet1">⚡ 1 min</button>
+            <button class="time-btn btn" data-time="180000" data-i18n="bullet3">⚡ 3 min</button>
+            <button class="time-btn btn" data-time="300000" data-i18n="blitz5">🔥 5 min</button>
+            <button class="time-btn btn" data-time="600000" data-i18n="rapid10">⏱️ 10 min</button>
+            <button class="time-btn btn" data-time="1800000" data-i18n="classical30">🕐 30 min</button>
+            <button class="time-btn btn" data-time="3600000" data-i18n="classical60">🕐 60 min</button>
+            <button class="time-btn btn active" data-time="0" data-i18n="unlimited">♾️ Illimité</button>
+        </div>
+
         <h2 data-i18n="chooseDifficulty">Choisir la difficulté</h2>
         <div class="difficulty-buttons">
             <button class="difficulty-btn btn btn-large" data-difficulty="easy">
@@ -60,7 +75,17 @@
     <div class="setup-container">
         <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
         <h2 data-i18n="playOnline">Jouer en ligne</h2>
+
         <div id="online-form" class="online-form">
+            <h3 data-i18n="selectTime">Choisir le temps</h3>
+            <div class="time-buttons" id="online-time-buttons">
+                <button class="time-btn btn" data-time="60000" data-i18n="bullet1">⚡ 1 min</button>
+                <button class="time-btn btn" data-time="180000" data-i18n="bullet3">⚡ 3 min</button>
+                <button class="time-btn btn" data-time="300000" data-i18n="blitz5">🔥 5 min</button>
+                <button class="time-btn btn" data-time="600000" data-i18n="rapid10">⏱️ 10 min</button>
+                <button class="time-btn btn active" data-time="0" data-i18n="unlimited">♾️ Illimité</button>
+            </div>
+
             <button id="btn-create-room" class="btn btn-primary btn-large" data-i18n="createRoom">Créer un salon</button>
             <div class="divider"><span>ou</span></div>
             <div class="join-form">
@@ -69,17 +94,37 @@
                 <button id="btn-join-room" class="btn btn-secondary" data-i18n="joinRoom">Rejoindre</button>
             </div>
         </div>
+
         <div id="room-info" class="room-info hidden">
             <p data-i18n="shareCode">Partagez ce code avec votre ami :</p>
             <div class="room-code-box">
                 <span id="room-code-display" class="room-code"></span>
-                <button class="btn btn-ghost btn-copy" onclick="navigator.clipboard.writeText(document.getElementById('room-code-display').textContent); showNotification(t('copied'));">📋</button>
+                <button class="btn btn-ghost btn-copy" onclick="copyRoomCode()">📋</button>
             </div>
+            <button id="btn-copy-link" class="btn btn-secondary" onclick="copyInvitationLink()">
+                <span data-i18n="copyLink">🔗 Copier le lien d'invitation</span>
+            </button>
             <div class="waiting-spinner">
                 <div class="spinner"></div>
                 <span data-i18n="waitingOpponent">En attente d'un adversaire...</span>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- ═══════════ JOIN VIA LINK ═══════════ -->
+<div id="join-link-page" class="view hidden">
+    <div class="setup-container">
+        <div class="logo-section small-logo">
+            <div class="logo-pieces">♔ ⭕ ☠️</div>
+            <h1 class="title small" data-i18n="title">HangingChess</h1>
+        </div>
+        <p class="invite-text" data-i18n="joinViaLink">Vous êtes invité ! Cliquez pour rejoindre :</p>
+        <div class="room-code-box">
+            <span id="link-room-code" class="room-code"></span>
+        </div>
+        <button id="btn-join-via-link" class="btn btn-primary btn-large" data-i18n="joinRoom">Rejoindre la partie</button>
+        <button class="btn btn-outline" onclick="window.location.href=window.location.origin" data-i18n="newGame">Nouvelle partie</button>
     </div>
 </div>
 
@@ -134,6 +179,7 @@
 <div id="game-page" class="view hidden">
     <div class="game-header">
         <div class="game-controls">
+            <button id="btn-game-sound" class="btn btn-ghost btn-small">🔊</button>
             <button id="btn-resign" class="btn btn-danger btn-small" data-i18n="resign">Abandonner</button>
             <button id="btn-skip-hangman" class="btn btn-ghost btn-small hidden" data-i18n="skip">Passer</button>
         </div>
@@ -165,7 +211,15 @@
         <!-- CENTER: CHESS -->
         <div class="game-panel chess-panel">
             <h3 class="panel-title">♟️ <span data-i18n="chess">Échecs</span></h3>
+            <div id="clock-top" class="clock clock-opponent">
+                <span class="clock-label" id="clock-top-label"></span>
+                <span class="clock-time" id="clock-top-time"></span>
+            </div>
             <div id="chess-board" class="chess-board"></div>
+            <div id="clock-bottom" class="clock clock-player">
+                <span class="clock-label" id="clock-bottom-label"></span>
+                <span class="clock-time" id="clock-bottom-time"></span>
+            </div>
             <div class="move-history-container">
                 <h4 data-i18n="moveHistory">Historique</h4>
                 <div id="move-history" class="move-history"></div>

@@ -1,25 +1,102 @@
-/* ───────────── HANGINGCHESS - Main Application ───────────── */
+/* ═══════════ HANGINGCHESS - Main Application ═══════════ */
 
 let game = null;
 let socket = null;
 let selectedSquare = null;
 let validMoves = [];
 let boardFlipped = false;
+let selectedTimeControl = 0;
+let soundEnabled = JSON.parse(localStorage.getItem('hangingchess-sound') ?? 'true');
 
 const PIECE_UNICODE = {
     wk: '♔', wq: '♕', wr: '♖', wb: '♗', wn: '♘', wp: '♙',
     bk: '♚', bq: '♛', br: '♜', bb: '♝', bn: '♞', bp: '♟'
 };
 
-/* ───────────── NAVIGATION ───────────── */
+/* ═══════════ SOUND SYSTEM ═══════════ */
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playSound(type) {
+    if (!soundEnabled) return;
+    try {
+        initAudio();
+        switch (type) {
+            case 'move': playTone(220, 0.06, 'sine', 0.15); break;
+            case 'capture': playNoise(0.08, 0.3); playTone(160, 0.1, 'sine', 0.2); break;
+            case 'check': playTone(440, 0.12, 'square', 0.15); playTone(660, 0.12, 'square', 0.15, 0.1); break;
+            case 'ttt': playTone(523, 0.06, 'sine', 0.2); break;
+            case 'hangmanCorrect': playTone(523, 0.08, 'sine', 0.15); playTone(659, 0.08, 'sine', 0.15, 0.08); break;
+            case 'hangmanWrong': playTone(180, 0.15, 'sawtooth', 0.12); break;
+            case 'win': playTone(523, 0.12, 'sine', 0.2); playTone(659, 0.12, 'sine', 0.2, 0.12); playTone(784, 0.18, 'sine', 0.2, 0.24); break;
+            case 'lose': playTone(294, 0.15, 'sine', 0.2); playTone(262, 0.15, 'sine', 0.2, 0.15); playTone(220, 0.25, 'sine', 0.2, 0.3); break;
+            case 'tick': playTone(800, 0.015, 'sine', 0.06); break;
+            case 'timeout': playTone(330, 0.3, 'square', 0.2); playTone(220, 0.4, 'square', 0.2, 0.3); break;
+        }
+    } catch (e) { /* ignore audio errors */ }
+}
+
+function playTone(freq, duration, type, volume, delay) {
+    delay = delay || 0;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume || 0.2, audioCtx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime + delay);
+    osc.stop(audioCtx.currentTime + delay + duration + 0.05);
+}
+
+function playNoise(duration, volume) {
+    const bufferSize = Math.floor(audioCtx.sampleRate * duration);
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+    const source = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    source.buffer = buffer;
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    localStorage.setItem('hangingchess-sound', JSON.stringify(soundEnabled));
+    updateSoundButtons();
+    if (soundEnabled) playSound('move');
+}
+
+function updateSoundButtons() {
+    const icon = soundEnabled ? '🔊' : '🔇';
+    const btn1 = document.getElementById('btn-sound-toggle');
+    const btn2 = document.getElementById('btn-game-sound');
+    if (btn1) btn1.textContent = icon;
+    if (btn2) btn2.textContent = icon;
+}
+
+/* ═══════════ NAVIGATION ═══════════ */
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById(viewId).classList.remove('hidden');
 }
 
 function renderLanding() {
+    if (game && game.clock) game.clock.stop();
+    game = null;
     updateTexts();
     showView('landing-page');
+    document.getElementById('room-info').classList.add('hidden');
+    document.getElementById('online-form').classList.remove('hidden');
 }
 
 function updateTexts() {
@@ -32,19 +109,37 @@ function updateTexts() {
     document.querySelectorAll('.lang-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.lang === currentLang);
     });
+    updateSoundButtons();
 }
 
-/* ───────────── INIT ───────────── */
+/* ═══════════ INIT ═══════════ */
 document.addEventListener('DOMContentLoaded', () => {
     initSocketIO();
-    renderLanding();
     setupEventListeners();
+    checkURLParams();
+    updateTexts();
 });
+
+function checkURLParams() {
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    if (roomCode) {
+        document.getElementById('link-room-code').textContent = roomCode.toUpperCase();
+        showView('join-link-page');
+        document.getElementById('btn-join-via-link').addEventListener('click', () => {
+            socket.emit('join-room', { code: roomCode, lang: currentLang });
+        });
+    } else {
+        renderLanding();
+    }
+}
 
 function setupEventListeners() {
     document.getElementById('btn-vs-bot').addEventListener('click', () => showView('bot-setup'));
     document.getElementById('btn-online').addEventListener('click', () => showView('online-setup'));
     document.getElementById('btn-rules').addEventListener('click', () => showView('rules-page'));
+    document.getElementById('btn-sound-toggle').addEventListener('click', toggleSound);
+    document.getElementById('btn-game-sound').addEventListener('click', toggleSound);
 
     document.querySelectorAll('.btn-back').forEach(btn => {
         btn.addEventListener('click', renderLanding);
@@ -54,6 +149,15 @@ function setupEventListeners() {
         btn.addEventListener('click', () => {
             setLang(btn.dataset.lang);
             updateTexts();
+        });
+    });
+
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const container = btn.closest('.time-buttons');
+            container.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTimeControl = parseInt(btn.dataset.time) || 0;
         });
     });
 
@@ -72,9 +176,22 @@ function setupEventListeners() {
     document.getElementById('btn-rematch').addEventListener('click', requestRematch);
 }
 
-/* ───────────── SOCKET.IO ───────────── */
+/* ═══════════ INVITATION LINKS ═══════════ */
+function copyRoomCode() {
+    const code = document.getElementById('room-code-display').textContent;
+    navigator.clipboard.writeText(code).then(() => showNotification(t('copied')));
+}
+
+function copyInvitationLink() {
+    const code = document.getElementById('room-code-display').textContent;
+    const link = window.location.origin + window.location.pathname + '?room=' + code;
+    navigator.clipboard.writeText(link).then(() => showNotification(t('linkCopied')));
+}
+
+/* ═══════════ SOCKET.IO ═══════════ */
 function initSocketIO() {
     socket = io();
+
     socket.on('room-created', ({ code }) => {
         document.getElementById('room-code-display').textContent = code;
         document.getElementById('room-info').classList.remove('hidden');
@@ -85,13 +202,19 @@ function initSocketIO() {
         alert(message);
     });
 
-    socket.on('game-start', ({ color, hangmanWord, opponentHangmanLength }) => {
-        startOnlineGame(color, hangmanWord, opponentHangmanLength);
+    socket.on('game-start', ({ color, hangmanWord, opponentHangmanLength, timeControl }) => {
+        window.history.replaceState({}, '', window.location.pathname);
+        startOnlineGame(color, hangmanWord, opponentHangmanLength, timeControl || 0);
     });
 
     socket.on('chess-move', ({ from, to, promotion }) => {
         if (game && !game.gameOver) {
-            game.makeChessMove(from, to, promotion);
+            const moveResult = game.makeChessMove(from, to, promotion);
+            if (moveResult) {
+                if (moveResult.captured) playSound('capture');
+                else playSound('move');
+                if (game.chess.in_check()) playSound('check');
+            }
             renderGame();
         }
     });
@@ -99,6 +222,7 @@ function initSocketIO() {
     socket.on('ttt-move', ({ pos }) => {
         if (game && !game.gameOver) {
             game.makeTTTMove(pos);
+            playSound('ttt');
             renderGame();
         }
     });
@@ -110,11 +234,15 @@ function initSocketIO() {
             if (!correct) {
                 hangman.wrongCount++;
                 if (hangman.wrongCount >= hangman.maxWrong) hangman.lost = true;
+                playSound('hangmanWrong');
+            } else {
+                playSound('hangmanCorrect');
             }
             if (display) game.opponentHangmanDisplay = display;
             if (won) {
                 hangman.won = true;
                 game.endGame(game.opponentColor, 'loseByHangman');
+                playSound('lose');
             } else {
                 game.advanceToNextTurn();
             }
@@ -132,6 +260,7 @@ function initSocketIO() {
     socket.on('opponent-resigned', () => {
         if (game) {
             game.endGame(game.playerColor, 'winByResign');
+            playSound('win');
             renderGame();
         }
     });
@@ -144,10 +273,6 @@ function initSocketIO() {
         }
     });
 
-    socket.on('game-won', (data) => {
-        if (game) renderGame();
-    });
-
     socket.on('rematch-request', () => {
         showNotification(t('opponentWantsRematch'));
         if (confirm(t('opponentWantsRematch') + ' ' + t('accept') + '?')) {
@@ -156,7 +281,7 @@ function initSocketIO() {
     });
 }
 
-/* ───────────── START GAMES ───────────── */
+/* ═══════════ START GAMES ═══════════ */
 function startBotGame(difficulty) {
     const playerWord = randomWord();
     const botWord = randomWord();
@@ -166,33 +291,41 @@ function startBotGame(difficulty) {
         playerColor: 'w',
         playerWord,
         opponentWord: botWord,
+        timeControl: selectedTimeControl,
         onUpdate: () => renderGame(),
-        onPhaseChange: (phase) => renderGame(),
+        onPhaseChange: () => renderGame(),
         onGameOver: (result) => handleGameOver(result)
     });
+    if (game.clock) {
+        game.clock.onTick = () => renderClocks();
+    }
     boardFlipped = false;
     showView('game-page');
     renderGame();
 }
 
-function startOnlineGame(color, hangmanWord, opponentHangmanLength) {
+function startOnlineGame(color, hangmanWord, opponentHangmanLength, timeControl) {
     const opponentWord = '_'.repeat(opponentHangmanLength);
     game = new CombinedGame({
         mode: 'online',
         playerColor: color,
         playerWord: hangmanWord,
         opponentWord: opponentWord,
+        timeControl: timeControl || 0,
         onUpdate: () => renderGame(),
-        onPhaseChange: (phase) => renderGame(),
+        onPhaseChange: () => renderGame(),
         onGameOver: (result) => handleGameOver(result)
     });
+    if (game.clock) {
+        game.clock.onTick = () => renderClocks();
+    }
     boardFlipped = color === 'b';
     showView('game-page');
     renderGame();
 }
 
 function createRoom() {
-    socket.emit('create-room', { lang: currentLang });
+    socket.emit('create-room', { lang: currentLang, timeControl: selectedTimeControl });
 }
 
 function joinRoom() {
@@ -201,14 +334,13 @@ function joinRoom() {
     socket.emit('join-room', { code, lang: currentLang });
 }
 
-/* ───────────── CHESS BOARD RENDERING ───────────── */
+/* ═══════════ CHESS BOARD RENDERING ═══════════ */
 function renderChessBoard() {
     const container = document.getElementById('chess-board');
     container.innerHTML = '';
 
     const board = game.chess.board();
-    const isPlayerTurn = game.isPlayerTurn && !game.gameOver;
-    const canMove = isPlayerTurn && game.phase === 'chess';
+    const canMove = game.isPlayerTurn && !game.gameOver && game.phase === 'chess';
 
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
@@ -221,52 +353,39 @@ function renderChessBoard() {
             cell.className = 'chess-square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
             cell.dataset.square = square;
 
-            if (selectedSquare === square) {
-                cell.classList.add('selected');
-            }
-
+            if (selectedSquare === square) cell.classList.add('selected');
             if (validMoves.includes(square)) {
                 cell.classList.add('valid-move');
                 if (piece) cell.classList.add('has-piece');
             }
 
-            const lastMove = game.moveLog.filter(m => m.type === 'chess').slice(-1)[0];
-            if (lastMove && lastMove.move) {
-                const history = game.chess.history({ verbose: true });
-                if (history.length > 0) {
-                    const last = history[history.length - 1];
-                    if (square === last.from || square === last.to) {
-                        cell.classList.add('last-move');
-                    }
-                }
+            const history = game.chess.history({ verbose: true });
+            if (history.length > 0) {
+                const last = history[history.length - 1];
+                if (square === last.from || square === last.to) cell.classList.add('last-move');
             }
 
             if (piece) {
                 const pieceEl = document.createElement('span');
                 pieceEl.className = 'chess-piece' + (piece.color === 'w' ? ' white-piece' : ' black-piece');
                 pieceEl.textContent = PIECE_UNICODE[piece.color + piece.type];
-
-                if (canMove && piece.color === game.playerColor) {
-                    pieceEl.classList.add('clickable');
-                }
+                if (canMove && piece.color === game.playerColor) pieceEl.classList.add('clickable');
                 cell.appendChild(pieceEl);
             }
 
-            if (canMove) {
-                cell.addEventListener('click', () => handleSquareClick(square));
-            }
+            if (canMove) cell.addEventListener('click', () => handleSquareClick(square));
 
             if (r === 7) {
-                const fileLabel = document.createElement('span');
-                fileLabel.className = 'board-label file-label';
-                fileLabel.textContent = String.fromCharCode(97 + col);
-                cell.appendChild(fileLabel);
+                const fl = document.createElement('span');
+                fl.className = 'board-label file-label';
+                fl.textContent = String.fromCharCode(97 + col);
+                cell.appendChild(fl);
             }
             if (c === 0) {
-                const rankLabel = document.createElement('span');
-                rankLabel.className = 'board-label rank-label';
-                rankLabel.textContent = 8 - row;
-                cell.appendChild(rankLabel);
+                const rl = document.createElement('span');
+                rl.className = 'board-label rank-label';
+                rl.textContent = 8 - row;
+                cell.appendChild(rl);
             }
 
             container.appendChild(cell);
@@ -288,8 +407,12 @@ function handleSquareClick(square) {
                 }
             }
             const move = game.makeChessMove(selectedSquare, square, promotion);
-            if (move && game.mode === 'online') {
-                socket.emit('chess-move', { from: selectedSquare, to: square, promotion });
+            if (move) {
+                playSound(move.captured ? 'capture' : 'move');
+                if (game.chess.in_check()) playSound('check');
+                if (game.mode === 'online') {
+                    socket.emit('chess-move', { from: selectedSquare, to: square, promotion });
+                }
             }
             selectedSquare = null;
             validMoves = [];
@@ -302,8 +425,7 @@ function handleSquareClick(square) {
             const piece = game.chess.get(square);
             if (piece && piece.color === game.playerColor) {
                 selectedSquare = square;
-                const moves = game.chess.moves({ square, verbose: true });
-                validMoves = moves.map(m => m.to);
+                validMoves = game.chess.moves({ square, verbose: true }).map(m => m.to);
             } else {
                 selectedSquare = null;
                 validMoves = [];
@@ -314,8 +436,7 @@ function handleSquareClick(square) {
         const piece = game.chess.get(square);
         if (piece && piece.color === game.playerColor) {
             selectedSquare = square;
-            const moves = game.chess.moves({ square, verbose: true });
-            validMoves = moves.map(m => m.to);
+            validMoves = game.chess.moves({ square, verbose: true }).map(m => m.to);
             renderChessBoard();
         }
     }
@@ -323,11 +444,20 @@ function handleSquareClick(square) {
 
 async function executeBotTurn() {
     if (!game || game.gameOver || game.isPlayerTurn) return;
+    const prevLog = game.moveLog.length;
     await game.botTurn();
+
+    const newEntries = game.moveLog.slice(prevLog);
+    for (const entry of newEntries) {
+        if (entry.type === 'chess') playSound(entry.captured ? 'capture' : 'move');
+        if (entry.type === 'chess' && entry.check) playSound('check');
+        if (entry.type === 'ttt') playSound('ttt');
+        if (entry.type === 'hangman') playSound(entry.correct ? 'hangmanCorrect' : 'hangmanWrong');
+    }
     renderGame();
 }
 
-/* ───────────── TIC-TAC-TOE RENDERING ───────────── */
+/* ═══════════ TIC-TAC-TOE RENDERING ═══════════ */
 function renderTicTacToe() {
     const container = document.getElementById('ttt-board');
     container.innerHTML = '';
@@ -345,9 +475,7 @@ function renderTicTacToe() {
             cell.classList.add(game.ttt.board[i] === 'X' ? 'ttt-x' : 'ttt-o');
         }
 
-        if (winResult && winResult.line.includes(i)) {
-            cell.classList.add('ttt-win');
-        }
+        if (winResult && winResult.line.includes(i)) cell.classList.add('ttt-win');
 
         if (canMove && !game.ttt.board[i]) {
             cell.classList.add('ttt-clickable');
@@ -358,9 +486,9 @@ function renderTicTacToe() {
     }
 
     const scoreEl = document.getElementById('ttt-score');
-    const playerMarks = game.ttt.board.filter(v => v === game.tttPlayerMark).length;
-    const opponentMarks = game.ttt.board.filter(v => v === game.tttOpponentMark).length;
-    scoreEl.textContent = `${t('you')}: ${playerMarks} | ${t(game.mode === 'bot' ? 'bot' : 'opponent')}: ${opponentMarks}`;
+    const pM = game.ttt.board.filter(v => v === game.tttPlayerMark).length;
+    const oM = game.ttt.board.filter(v => v === game.tttOpponentMark).length;
+    scoreEl.textContent = `${t('you')}: ${pM} | ${t(game.mode === 'bot' ? 'bot' : 'opponent')}: ${oM}`;
 }
 
 function handleTTTClick(pos) {
@@ -368,8 +496,9 @@ function handleTTTClick(pos) {
     if (game.pendingTTTPlayer !== game.tttPlayerMark) return;
 
     const success = game.makeTTTMove(pos);
-    if (success && game.mode === 'online') {
-        socket.emit('ttt-move', { pos });
+    if (success) {
+        playSound('ttt');
+        if (game.mode === 'online') socket.emit('ttt-move', { pos });
     }
     renderGame();
 
@@ -378,7 +507,7 @@ function handleTTTClick(pos) {
     }
 }
 
-/* ───────────── HANGMAN RENDERING ───────────── */
+/* ═══════════ HANGMAN RENDERING ═══════════ */
 function renderHangman() {
     const hangman = game.playerHangman;
     const opponentHangman = game.opponentHangman;
@@ -425,11 +554,7 @@ function renderHangmanKeyboard(hangman) {
 
         if (hangman.guessed.includes(letter)) {
             btn.classList.add('guessed');
-            if (hangman.word.includes(letter)) {
-                btn.classList.add('correct');
-            } else {
-                btn.classList.add('wrong');
-            }
+            btn.classList.add(hangman.word.includes(letter) ? 'correct' : 'wrong');
             btn.disabled = true;
         } else if (!canGuess) {
             btn.disabled = true;
@@ -444,13 +569,16 @@ function handleHangmanGuess(letter) {
     if (!game || game.gameOver || game.phase !== 'hangman' || !game.isPlayerTurn) return;
 
     const result = game.makeHangmanGuess(letter);
-    if (result !== null && game.mode === 'online') {
-        socket.emit('hangman-guess', {
-            letter,
-            correct: result,
-            won: game.playerHangman.won,
-            display: game.playerHangman.getDisplay()
-        });
+    if (result !== null) {
+        playSound(result ? 'hangmanCorrect' : 'hangmanWrong');
+        if (game.mode === 'online') {
+            socket.emit('hangman-guess', {
+                letter,
+                correct: result,
+                won: game.playerHangman.won,
+                display: game.playerHangman.getDisplay()
+            });
+        }
     }
     renderGame();
 
@@ -462,7 +590,6 @@ function handleHangmanGuess(letter) {
 function drawHangmanSVG(containerId, wrongCount) {
     const svg = document.getElementById(containerId);
     svg.innerHTML = '';
-
     const ns = 'http://www.w3.org/2000/svg';
 
     function line(x1, y1, x2, y2, cls) {
@@ -472,11 +599,9 @@ function drawHangmanSVG(containerId, wrongCount) {
         el.setAttribute('class', cls || 'gallows');
         svg.appendChild(el);
     }
-
     function circle(cx, cy, r, cls) {
         const el = document.createElementNS(ns, 'circle');
-        el.setAttribute('cx', cx); el.setAttribute('cy', cy);
-        el.setAttribute('r', r);
+        el.setAttribute('cx', cx); el.setAttribute('cy', cy); el.setAttribute('r', r);
         el.setAttribute('class', cls || 'body');
         svg.appendChild(el);
     }
@@ -496,10 +621,7 @@ function drawHangmanSVG(containerId, wrongCount) {
 
 function skipHangmanPhase() {
     if (!game || game.phase !== 'hangman') return;
-
-    if (game.mode === 'online') {
-        socket.emit('skip-hangman');
-    }
+    if (game.mode === 'online') socket.emit('skip-hangman');
     game.skipHangman();
     renderGame();
 
@@ -508,7 +630,47 @@ function skipHangmanPhase() {
     }
 }
 
-/* ───────────── MAIN RENDER ───────────── */
+/* ═══════════ CLOCKS ═══════════ */
+function renderClocks() {
+    if (!game) return;
+    const clockTop = document.getElementById('clock-top');
+    const clockBottom = document.getElementById('clock-bottom');
+
+    if (!game.clock) {
+        clockTop.classList.add('hidden');
+        clockBottom.classList.add('hidden');
+        return;
+    }
+
+    clockTop.classList.remove('hidden');
+    clockBottom.classList.remove('hidden');
+
+    const topColor = boardFlipped ? 'w' : 'b';
+    const bottomColor = boardFlipped ? 'b' : 'w';
+
+    const topLabel = topColor === game.playerColor
+        ? t('you') : t(game.mode === 'bot' ? 'bot' : 'opponent');
+    const bottomLabel = bottomColor === game.playerColor
+        ? t('you') : t(game.mode === 'bot' ? 'bot' : 'opponent');
+
+    document.getElementById('clock-top-label').textContent =
+        `${topLabel} (${topColor === 'w' ? t('white') : t('black')})`;
+    document.getElementById('clock-top-time').textContent = game.clock.formatTime(topColor);
+    document.getElementById('clock-bottom-label').textContent =
+        `${bottomLabel} (${bottomColor === 'w' ? t('white') : t('black')})`;
+    document.getElementById('clock-bottom-time').textContent = game.clock.formatTime(bottomColor);
+
+    clockTop.className = 'clock';
+    clockBottom.className = 'clock';
+
+    if (game.clock.active === topColor) clockTop.classList.add('active-clock');
+    if (game.clock.active === bottomColor) clockBottom.classList.add('active-clock');
+
+    if (game.clock.getTime(topColor) < 30000 && game.clock.active === topColor) clockTop.classList.add('low-time');
+    if (game.clock.getTime(bottomColor) < 30000 && game.clock.active === bottomColor) clockBottom.classList.add('low-time');
+}
+
+/* ═══════════ MAIN RENDER ═══════════ */
 function renderGame() {
     if (!game) return;
 
@@ -517,6 +679,7 @@ function renderGame() {
     renderHangman();
     renderStatus();
     renderMoveHistory();
+    renderClocks();
 
     document.getElementById('btn-skip-hangman').classList.toggle('hidden',
         game.phase !== 'hangman' || !game.isPlayerTurn || game.gameOver);
@@ -531,9 +694,7 @@ function renderGame() {
         }, 600);
     }
 
-    if (game.gameOver) {
-        showGameOver();
-    }
+    if (game.gameOver) showGameOver();
 }
 
 function renderStatus() {
@@ -565,9 +726,7 @@ function renderStatus() {
             break;
     }
 
-    if (game.chess.in_check()) {
-        statusEl.textContent += ' — ' + t('check');
-    }
+    if (game.chess.in_check()) statusEl.textContent += ' — ' + t('check');
 }
 
 function renderMoveHistory() {
@@ -589,13 +748,17 @@ function renderMoveHistory() {
     container.scrollTop = container.scrollHeight;
 }
 
-/* ───────────── GAME OVER ───────────── */
+/* ═══════════ GAME OVER ═══════════ */
 function handleGameOver(result) {
+    const isWinner = result.winner === game.playerColor;
+    const isDraw = result.winner === null;
+    if (isDraw) playSound('lose');
+    else if (isWinner) playSound('win');
+    else playSound('lose');
     renderGame();
 }
 
 function showGameOver() {
-    const overlay = document.getElementById('game-over-page');
     const isWinner = game.winner === game.playerColor;
     const isDraw = game.winner === null;
 
@@ -615,18 +778,15 @@ function showGameOver() {
     document.getElementById('game-over-subtitle').textContent = subtitle;
     document.getElementById('game-over-title').className = isDraw ? 'draw' : (isWinner ? 'win' : 'lose');
 
-    overlay.classList.remove('hidden');
     showView('game-over-page');
 }
 
 function resignGame() {
     if (!game || game.gameOver) return;
     if (!confirm(t('confirmResign'))) return;
-
-    if (game.mode === 'online') {
-        socket.emit('resign');
-    }
+    if (game.mode === 'online') socket.emit('resign');
     game.endGame(game.opponentColor, 'loseByResign');
+    playSound('lose');
     renderGame();
 }
 
@@ -639,7 +799,7 @@ function requestRematch() {
     }
 }
 
-/* ───────────── ANALYSIS ───────────── */
+/* ═══════════ ANALYSIS ═══════════ */
 function showAnalysis() {
     if (!game) return;
     const analysis = game.getAnalysis();
@@ -690,7 +850,7 @@ function showAnalysis() {
     showView('analysis-page');
 }
 
-/* ───────────── NOTIFICATIONS ───────────── */
+/* ═══════════ NOTIFICATIONS ═══════════ */
 function showNotification(message) {
     const notif = document.createElement('div');
     notif.className = 'notification';
