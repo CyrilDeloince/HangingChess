@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>♔ HangingChess</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♔</text></svg>">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ═══════════ LANDING PAGE ═══════════ -->
+<div id="landing-page" class="view">
+    <div class="landing-container">
+        <div class="lang-switch">
+            <button class="lang-btn" data-lang="fr">🇫🇷 FR</button>
+            <button class="lang-btn" data-lang="en">🇬🇧 EN</button>
+        </div>
+        <div class="logo-section">
+            <div class="logo-pieces">♔ ⭕ ☠️</div>
+            <h1 class="title" data-i18n="title">HangingChess</h1>
+            <p class="subtitle" data-i18n="subtitle">Échecs × Morpion × Pendu</p>
+            <p class="tagline" data-i18n="tagline">Trois jeux. Un gagnant. Jouez-les tous en même temps !</p>
+        </div>
+        <div class="menu-buttons">
+            <button id="btn-vs-bot" class="btn btn-primary btn-large" data-i18n="vsBot">🤖 Jouer vs Bot</button>
+            <button id="btn-online" class="btn btn-secondary btn-large" data-i18n="online">🌐 Jouer en ligne</button>
+            <button id="btn-rules" class="btn btn-outline btn-large" data-i18n="rules">📖 Règles</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ BOT SETUP ═══════════ -->
+<div id="bot-setup" class="view hidden">
+    <div class="setup-container">
+        <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+        <h2 data-i18n="chooseDifficulty">Choisir la difficulté</h2>
+        <div class="difficulty-buttons">
+            <button class="difficulty-btn btn btn-large" data-difficulty="easy">
+                <span class="diff-emoji">😊</span>
+                <span class="diff-label" data-i18n="easy">Facile</span>
+                <span class="diff-stars">⭐</span>
+            </button>
+            <button class="difficulty-btn btn btn-large" data-difficulty="medium">
+                <span class="diff-emoji">🤔</span>
+                <span class="diff-label" data-i18n="medium">Moyen</span>
+                <span class="diff-stars">⭐⭐</span>
+            </button>
+            <button class="difficulty-btn btn btn-large" data-difficulty="hard">
+                <span class="diff-emoji">🧠</span>
+                <span class="diff-label" data-i18n="hard">Difficile</span>
+                <span class="diff-stars">⭐⭐⭐</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ ONLINE SETUP ═══════════ -->
+<div id="online-setup" class="view hidden">
+    <div class="setup-container">
+        <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+        <h2 data-i18n="playOnline">Jouer en ligne</h2>
+        <div id="online-form" class="online-form">
+            <button id="btn-create-room" class="btn btn-primary btn-large" data-i18n="createRoom">Créer un salon</button>
+            <div class="divider"><span>ou</span></div>
+            <div class="join-form">
+                <input id="room-code-input" type="text" class="input-code" maxlength="6"
+                    data-i18n-placeholder="enterCode" placeholder="Entrer le code...">
+                <button id="btn-join-room" class="btn btn-secondary" data-i18n="joinRoom">Rejoindre</button>
+            </div>
+        </div>
+        <div id="room-info" class="room-info hidden">
+            <p data-i18n="shareCode">Partagez ce code avec votre ami :</p>
+            <div class="room-code-box">
+                <span id="room-code-display" class="room-code"></span>
+                <button class="btn btn-ghost btn-copy" onclick="navigator.clipboard.writeText(document.getElementById('room-code-display').textContent); showNotification(t('copied'));">📋</button>
+            </div>
+            <div class="waiting-spinner">
+                <div class="spinner"></div>
+                <span data-i18n="waitingOpponent">En attente d'un adversaire...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ RULES PAGE ═══════════ -->
+<div id="rules-page" class="view hidden">
+    <div class="rules-container">
+        <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+        <h2 data-i18n="rulesTitle">Comment jouer</h2>
+        <p class="rules-intro" data-i18n="rulesIntro">HangingChess combine trois jeux classiques en une expérience stratégique unique.</p>
+
+        <div class="rules-section">
+            <h3 data-i18n="rulesTurnTitle">Déroulement d'un tour</h3>
+            <div class="rules-steps">
+                <div class="rule-step">
+                    <div class="step-icon">♟️</div>
+                    <p data-i18n="rulesTurn1">1. Jouez un coup d'échecs (obligatoire)</p>
+                </div>
+                <div class="rule-step">
+                    <div class="step-icon">⭕</div>
+                    <p data-i18n="rulesTurn2">2. Si vous capturez une pièce → placez un pion au morpion</p>
+                </div>
+                <div class="rule-step">
+                    <div class="step-icon">📝</div>
+                    <p data-i18n="rulesTurn3">3. Devinez une lettre au pendu (optionnel)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rules-section">
+            <h3 data-i18n="rulesWinTitle">Conditions de victoire</h3>
+            <div class="win-conditions">
+                <div class="win-cond"><span data-i18n="rulesWin1">♟️ Faire Échec et Mat</span></div>
+                <div class="win-cond"><span data-i18n="rulesWin2">⭕ Aligner trois pions</span></div>
+                <div class="win-cond"><span data-i18n="rulesWin3">📝 Deviner le mot du pendu</span></div>
+            </div>
+            <p class="win-note" data-i18n="rulesWinNote">Le premier à accomplir UNE condition gagne !</p>
+        </div>
+
+        <div class="rules-section">
+            <h3 data-i18n="rulesStratTitle">Conseils stratégiques</h3>
+            <ul class="strategy-list">
+                <li data-i18n="rulesStrat1">🎯 Jouez agressivement pour gagner des coups au morpion</li>
+                <li data-i18n="rulesStrat2">🧠 Équilibrez votre attention entre les trois jeux</li>
+                <li data-i18n="rulesStrat3">⚡ Capturer des pièces débloque le morpion</li>
+                <li data-i18n="rulesStrat4">📖 Utilisez les lettres fréquentes au pendu</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ GAME PAGE ═══════════ -->
+<div id="game-page" class="view hidden">
+    <div class="game-header">
+        <div class="game-controls">
+            <button id="btn-resign" class="btn btn-danger btn-small" data-i18n="resign">Abandonner</button>
+            <button id="btn-skip-hangman" class="btn btn-ghost btn-small hidden" data-i18n="skip">Passer</button>
+        </div>
+        <div id="status-bar" class="status-bar"></div>
+    </div>
+
+    <div class="game-container">
+        <!-- LEFT: HANGMAN -->
+        <div class="game-panel hangman-panel">
+            <h3 class="panel-title">📝 <span data-i18n="hangman">Pendu</span></h3>
+
+            <div class="hangman-section">
+                <h4 data-i18n="yourHangman">Votre mot</h4>
+                <svg id="hangman-svg" viewBox="0 0 140 150" class="hangman-drawing"></svg>
+                <div id="hangman-word" class="hangman-word"></div>
+                <div id="hangman-wrong" class="hangman-wrong"></div>
+                <div id="hangman-status" class="hangman-status"></div>
+                <div id="hangman-keyboard" class="hangman-keyboard"></div>
+            </div>
+
+            <div class="hangman-section opponent-hangman">
+                <h4 data-i18n="opponentHangman">Mot adverse</h4>
+                <svg id="opponent-hangman-svg" viewBox="0 0 140 150" class="hangman-drawing small"></svg>
+                <div id="opponent-hangman-word" class="hangman-word small"></div>
+                <div id="opponent-hangman-wrong" class="hangman-wrong"></div>
+            </div>
+        </div>
+
+        <!-- CENTER: CHESS -->
+        <div class="game-panel chess-panel">
+            <h3 class="panel-title">♟️ <span data-i18n="chess">Échecs</span></h3>
+            <div id="chess-board" class="chess-board"></div>
+            <div class="move-history-container">
+                <h4 data-i18n="moveHistory">Historique</h4>
+                <div id="move-history" class="move-history"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT: TIC-TAC-TOE -->
+        <div class="game-panel ttt-panel">
+            <h3 class="panel-title">⭕ <span data-i18n="tictactoe">Morpion</span></h3>
+            <div id="ttt-board" class="ttt-board"></div>
+            <div id="ttt-score" class="ttt-score"></div>
+            <div class="ttt-info">
+                <p class="ttt-hint" data-i18n="rulesStrat3">⚡ Capturez des pièces aux échecs pour jouer ici</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ GAME OVER PAGE ═══════════ -->
+<div id="game-over-page" class="view hidden">
+    <div class="game-over-container">
+        <h1 id="game-over-title" class="game-over-title"></h1>
+        <p id="game-over-subtitle" class="game-over-subtitle"></p>
+        <div class="game-over-buttons">
+            <button id="btn-rematch" class="btn btn-primary btn-large" data-i18n="rematch">Revanche</button>
+            <button id="btn-analysis" class="btn btn-secondary btn-large" data-i18n="analysis">📊 Analyse</button>
+            <button id="btn-new-game" class="btn btn-outline btn-large" data-i18n="newGame">Nouvelle partie</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════ ANALYSIS PAGE ═══════════ -->
+<div id="analysis-page" class="view hidden">
+    <div class="analysis-container">
+        <div class="analysis-header">
+            <button id="btn-back-analysis" class="btn btn-ghost" data-i18n="back">← Retour</button>
+            <h2 data-i18n="analysisTitle">Analyse de la partie</h2>
+            <button id="btn-new-game-analysis" class="btn btn-ghost" data-i18n="newGame">Nouvelle partie</button>
+        </div>
+        <div id="analysis-content" class="analysis-content"></div>
+    </div>
+</div>
+
+<script src="/js/chess.lib.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/i18n.js"></script>
+<script src="/js/game.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
