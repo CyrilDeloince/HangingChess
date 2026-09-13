@@ -144,20 +144,29 @@ const LETTER_FREQ_FR = 'ESAITNRULODCMPGBVHFQYXJKWZ';
 
 function getBestHangmanGuess(hangman, difficulty) {
     const freq = currentLang === 'fr' ? LETTER_FREQ_FR : LETTER_FREQ_EN;
-    const available = freq.split('').filter(l => !hangman.guessed.includes(l));
-    if (available.length === 0) return null;
+    const allLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(l => !hangman.guessed.includes(l));
+    if (allLetters.length === 0) return null;
 
     if (difficulty === 'easy') {
-        const allLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(l => !hangman.guessed.includes(l));
-        return allLetters[Math.floor(Math.random() * allLetters.length)];
+        if (Math.random() < 0.5) return allLetters[Math.floor(Math.random() * allLetters.length)];
+        const available = freq.split('').filter(l => !hangman.guessed.includes(l));
+        return available.length > 0 ? available[0] : allLetters[0];
     }
-    if (difficulty === 'medium') {
-        if (Math.random() < 0.3) {
-            const allLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter(l => !hangman.guessed.includes(l));
-            return allLetters[Math.floor(Math.random() * allLetters.length)];
+
+    if (difficulty === 'hard') {
+        const wordLetters = [...new Set(hangman.word.split(''))];
+        const unguessedCorrect = wordLetters.filter(l => !hangman.guessed.includes(l));
+        if (unguessedCorrect.length > 0 && Math.random() < 0.7) {
+            return unguessedCorrect[Math.floor(Math.random() * unguessedCorrect.length)];
         }
     }
-    return available[0];
+
+    if (difficulty === 'medium') {
+        if (Math.random() < 0.2) return allLetters[Math.floor(Math.random() * allLetters.length)];
+    }
+
+    const available = freq.split('').filter(l => !hangman.guessed.includes(l));
+    return available.length > 0 ? available[0] : allLetters[0];
 }
 
 /* ───────────────────────── CHESS BOT AI ───────────────────────── */
@@ -193,12 +202,68 @@ const BISHOP_TABLE = [
     -10,  5,  0,  0,  0,  0,  5,-10,
     -20,-10,-10,-10,-10,-10,-10,-20
 ];
+const ROOK_TABLE = [
+     0,  0,  0,  0,  0,  0,  0,  0,
+     5, 10, 10, 10, 10, 10, 10,  5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+     0,  0,  0,  5,  5,  0,  0,  0
+];
+const QUEEN_TABLE = [
+    -20,-10,-10, -5, -5,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5,  5,  5,  5,  0,-10,
+     -5,  0,  5,  5,  5,  5,  0, -5,
+      0,  0,  5,  5,  5,  5,  0, -5,
+    -10,  5,  5,  5,  5,  5,  0,-10,
+    -10,  0,  5,  0,  0,  0,  0,-10,
+    -20,-10,-10, -5, -5,-10,-10,-20
+];
+const KING_MID_TABLE = [
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -20,-30,-30,-40,-40,-30,-30,-20,
+    -10,-20,-20,-20,-20,-20,-20,-10,
+     20, 20,  0,  0,  0,  0, 20, 20,
+     20, 30, 10,  0,  0, 10, 30, 20
+];
+const KING_END_TABLE = [
+    -50,-40,-30,-20,-20,-30,-40,-50,
+    -30,-20,-10,  0,  0,-10,-20,-30,
+    -30,-10, 20, 30, 30, 20,-10,-30,
+    -30,-10, 30, 40, 40, 30,-10,-30,
+    -30,-10, 30, 40, 40, 30,-10,-30,
+    -30,-10, 20, 30, 30, 20,-10,-30,
+    -30,-30,  0,  0,  0,  0,-30,-30,
+    -50,-30,-30,-30,-30,-30,-30,-50
+];
 
-function getPST(type) {
+function isEndgame(chess) {
+    const board = chess.board();
+    let queens = 0, minors = 0;
+    for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 8; c++) {
+            const p = board[r][c];
+            if (!p) continue;
+            if (p.type === 'q') queens++;
+            if (p.type === 'n' || p.type === 'b') minors++;
+        }
+    return queens === 0 || (queens <= 2 && minors <= 2);
+}
+
+function getPST(type, endgame) {
     switch(type) {
         case 'p': return PAWN_TABLE;
         case 'n': return KNIGHT_TABLE;
         case 'b': return BISHOP_TABLE;
+        case 'r': return ROOK_TABLE;
+        case 'q': return QUEEN_TABLE;
+        case 'k': return endgame ? KING_END_TABLE : KING_MID_TABLE;
         default: return null;
     }
 }
@@ -211,12 +276,14 @@ function evaluateBoard(chess) {
 
     let score = 0;
     const board = chess.board();
+    const endgame = isEndgame(chess);
+
     for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
             const piece = board[r][c];
             if (!piece) continue;
             let value = PIECE_VALUES[piece.type] || 0;
-            const pst = getPST(piece.type);
+            const pst = getPST(piece.type, endgame);
             if (pst) {
                 const idx = piece.color === 'w' ? (r * 8 + c) : ((7 - r) * 8 + c);
                 value += pst[idx];
@@ -224,6 +291,9 @@ function evaluateBoard(chess) {
             score += piece.color === 'w' ? value : -value;
         }
     }
+
+    const mobility = chess.moves().length;
+    score += chess.turn() === 'w' ? mobility * 3 : -mobility * 3;
 
     if (chess.in_check()) {
         score += chess.turn() === 'w' ? -50 : 50;
@@ -271,27 +341,34 @@ function minimax(chess, depth, alpha, beta, maximizing) {
     }
 }
 
-function getBestChessMove(chess, difficulty) {
+function getBestChessMove(chess, difficulty, gameContext) {
     const moves = chess.moves({ verbose: true });
     if (moves.length === 0) return null;
 
     if (difficulty === 'easy') {
+        if (Math.random() < 0.6) return moves[Math.floor(Math.random() * moves.length)];
         const captures = moves.filter(m => m.captured);
-        if (captures.length > 0 && Math.random() < 0.3) {
+        if (captures.length > 0 && Math.random() < 0.4) {
             return captures[Math.floor(Math.random() * captures.length)];
         }
         return moves[Math.floor(Math.random() * moves.length)];
     }
 
-    const searchDepth = difficulty === 'hard' ? 3 : 2;
+    const searchDepth = difficulty === 'hard' ? 4 : 3;
     const isMax = chess.turn() === 'w';
     let bestMove = moves[0];
     let bestVal = isMax ? -Infinity : Infinity;
 
+    const captureBonus = gameContext ? 30 : 0;
+
     for (const move of moves) {
         chess.move(move);
-        const val = minimax(chess, searchDepth - 1, -Infinity, Infinity, !isMax);
+        let val = minimax(chess, searchDepth - 1, -Infinity, Infinity, !isMax);
         chess.undo();
+
+        if (move.captured && captureBonus > 0) {
+            val += isMax ? captureBonus : -captureBonus;
+        }
 
         if (isMax ? val > bestVal : val < bestVal) {
             bestVal = val;
@@ -299,8 +376,9 @@ function getBestChessMove(chess, difficulty) {
         }
     }
 
-    if (difficulty === 'medium' && Math.random() < 0.15) {
-        return moves[Math.floor(Math.random() * moves.length)];
+    if (difficulty === 'medium' && Math.random() < 0.1) {
+        const top3 = moves.slice(0, Math.min(3, moves.length));
+        return top3[Math.floor(Math.random() * top3.length)];
     }
 
     return bestMove;
@@ -575,7 +653,8 @@ class CombinedGame {
         await sleep(400 + Math.random() * 600);
         if (this.gameOver) return;
 
-        const chessMove = getBestChessMove(this.chess, this.difficulty);
+        const gameCtx = { tttMoves: this.ttt.getValidMoves().length, tttBoard: this.ttt.board };
+        const chessMove = getBestChessMove(this.chess, this.difficulty, gameCtx);
         if (!chessMove) { this.skipHangman(); return; }
         const result = this.makeChessMove(chessMove.from, chessMove.to, chessMove.promotion);
         if (!result || this.gameOver) return;
@@ -710,8 +789,8 @@ function analyzePositions(positions, chessMoves) {
         const fenAfter = positions[i + 1];
         if (!fenBefore || !fenAfter) continue;
 
-        const evalBefore = deepEval(fenBefore, 1);
-        const evalAfter = deepEval(fenAfter, 1);
+        const evalBefore = deepEval(fenBefore, 2);
+        const evalAfter = deepEval(fenAfter, 2);
 
         const isWhite = chessMoves[i].player === 'w';
         const diff = isWhite ? (evalAfter - evalBefore) : (evalBefore - evalAfter);
@@ -724,15 +803,20 @@ function analyzePositions(positions, chessMoves) {
         else if (cpLoss <= 200) { quality = 'mistake'; qualityIcon = '❌'; }
         else { quality = 'blunder'; qualityIcon = '💀'; }
 
+        const isFr = currentLang === 'fr';
         let comment = '';
-        if (chessMoves[i].checkmate) comment = isWhite ? 'Checkmate! Decisive blow.' : 'Checkmate! Game over.';
-        else if (chessMoves[i].check) comment = quality === 'good' || quality === 'brilliant' ? 'Strong check!' : 'Check, but there may have been better options.';
-        else if (chessMoves[i].captured) comment = quality === 'good' || quality === 'brilliant' ? 'Good capture, material advantage.' : 'Capture, but positional cost.';
-        else if (quality === 'brilliant') comment = 'Excellent positional move!';
-        else if (quality === 'good') comment = 'Solid move.';
-        else if (quality === 'inaccuracy') comment = 'Slight imprecision, a better move was available.';
-        else if (quality === 'mistake') comment = 'This move loses material or position.';
-        else if (quality === 'blunder') comment = 'Critical error! Significant advantage lost.';
+        if (chessMoves[i].checkmate) comment = isFr ? 'Échec et mat ! Coup décisif.' : 'Checkmate! Decisive blow.';
+        else if (chessMoves[i].check) comment = (quality === 'good' || quality === 'brilliant')
+            ? (isFr ? 'Échec puissant !' : 'Strong check!')
+            : (isFr ? 'Échec, mais de meilleures options existaient.' : 'Check, but there may have been better options.');
+        else if (chessMoves[i].captured) comment = (quality === 'good' || quality === 'brilliant')
+            ? (isFr ? 'Bonne capture, avantage matériel.' : 'Good capture, material advantage.')
+            : (isFr ? 'Capture, mais coût positionnel.' : 'Capture, but positional cost.');
+        else if (quality === 'brilliant') comment = isFr ? 'Coup positionnel excellent !' : 'Excellent positional move!';
+        else if (quality === 'good') comment = isFr ? 'Coup solide.' : 'Solid move.';
+        else if (quality === 'inaccuracy') comment = isFr ? 'Légère imprécision, un meilleur coup existait.' : 'Slight imprecision, a better move was available.';
+        else if (quality === 'mistake') comment = isFr ? 'Ce coup perd du matériel ou de la position.' : 'This move loses material or position.';
+        else if (quality === 'blunder') comment = isFr ? 'Erreur critique ! Avantage significatif perdu.' : 'Critical error! Significant advantage lost.';
 
         results.push({
             moveIndex: i,
