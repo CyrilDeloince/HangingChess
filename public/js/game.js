@@ -375,6 +375,7 @@ class CombinedGame {
         this.ttt = new TicTacToe();
         this.playerHangman = new Hangman(opts.playerWord || randomWord());
         this.opponentHangman = new Hangman(opts.opponentWord || randomWord());
+        this.positions = [this.chess.fen()];
         this.phase = 'chess';
         this.activeTurnColor = 'w';
         this.gameOver = false;
@@ -448,6 +449,8 @@ class CombinedGame {
             check: this.chess.in_check(),
             checkmate: this.chess.in_checkmate()
         });
+
+        this.positions.push(this.chess.fen());
 
         if (this.chess.in_checkmate()) {
             const isPlayerWin = this.activeTurnColor === this.playerColor;
@@ -692,3 +695,98 @@ class CombinedGame {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function deepEval(fen, depth) {
+    const c = new Chess(fen);
+    if (c.game_over()) return evaluateBoard(c);
+    const isMax = c.turn() === 'w';
+    return minimax(c, depth, -Infinity, Infinity, isMax);
+}
+
+function analyzePositions(positions, chessMoves) {
+    const results = [];
+    for (let i = 0; i < chessMoves.length; i++) {
+        const fenBefore = positions[i];
+        const fenAfter = positions[i + 1];
+        if (!fenBefore || !fenAfter) continue;
+
+        const evalBefore = deepEval(fenBefore, 1);
+        const evalAfter = deepEval(fenAfter, 1);
+
+        const isWhite = chessMoves[i].player === 'w';
+        const diff = isWhite ? (evalAfter - evalBefore) : (evalBefore - evalAfter);
+        const cpLoss = Math.max(0, -diff);
+
+        let quality, qualityIcon;
+        if (diff > 80) { quality = 'brilliant'; qualityIcon = '✨'; }
+        else if (diff >= -15) { quality = 'good'; qualityIcon = '✅'; }
+        else if (cpLoss <= 60) { quality = 'inaccuracy'; qualityIcon = '⚠️'; }
+        else if (cpLoss <= 200) { quality = 'mistake'; qualityIcon = '❌'; }
+        else { quality = 'blunder'; qualityIcon = '💀'; }
+
+        let comment = '';
+        if (chessMoves[i].checkmate) comment = isWhite ? 'Checkmate! Decisive blow.' : 'Checkmate! Game over.';
+        else if (chessMoves[i].check) comment = quality === 'good' || quality === 'brilliant' ? 'Strong check!' : 'Check, but there may have been better options.';
+        else if (chessMoves[i].captured) comment = quality === 'good' || quality === 'brilliant' ? 'Good capture, material advantage.' : 'Capture, but positional cost.';
+        else if (quality === 'brilliant') comment = 'Excellent positional move!';
+        else if (quality === 'good') comment = 'Solid move.';
+        else if (quality === 'inaccuracy') comment = 'Slight imprecision, a better move was available.';
+        else if (quality === 'mistake') comment = 'This move loses material or position.';
+        else if (quality === 'blunder') comment = 'Critical error! Significant advantage lost.';
+
+        results.push({
+            moveIndex: i,
+            move: chessMoves[i].move,
+            player: chessMoves[i].player,
+            captured: chessMoves[i].captured,
+            check: chessMoves[i].check,
+            checkmate: chessMoves[i].checkmate,
+            evalBefore: evalBefore / 100,
+            evalAfter: evalAfter / 100,
+            cpLoss: cpLoss / 100,
+            quality,
+            qualityIcon,
+            comment,
+            fen: fenAfter
+        });
+    }
+
+    const playerMoves = results.filter(r => r.player === 'w');
+    const blackMoves = results.filter(r => r.player === 'b');
+
+    function estimateElo(moves) {
+        if (moves.length === 0) return 800;
+        const acpl = moves.reduce((s, m) => s + m.cpLoss, 0) / moves.length;
+        if (acpl < 0.15) return 2200;
+        if (acpl < 0.30) return 1800;
+        if (acpl < 0.50) return 1500;
+        if (acpl < 0.80) return 1200;
+        if (acpl < 1.20) return 1000;
+        if (acpl < 2.00) return 800;
+        return 600;
+    }
+
+    return {
+        moves: results,
+        whiteElo: estimateElo(playerMoves),
+        blackElo: estimateElo(blackMoves),
+        summary: {
+            white: {
+                brilliant: playerMoves.filter(m => m.quality === 'brilliant').length,
+                good: playerMoves.filter(m => m.quality === 'good').length,
+                inaccuracy: playerMoves.filter(m => m.quality === 'inaccuracy').length,
+                mistake: playerMoves.filter(m => m.quality === 'mistake').length,
+                blunder: playerMoves.filter(m => m.quality === 'blunder').length,
+                acpl: playerMoves.length ? (playerMoves.reduce((s,m) => s + m.cpLoss, 0) / playerMoves.length).toFixed(2) : 0
+            },
+            black: {
+                brilliant: blackMoves.filter(m => m.quality === 'brilliant').length,
+                good: blackMoves.filter(m => m.quality === 'good').length,
+                inaccuracy: blackMoves.filter(m => m.quality === 'inaccuracy').length,
+                mistake: blackMoves.filter(m => m.quality === 'mistake').length,
+                blunder: blackMoves.filter(m => m.quality === 'blunder').length,
+                acpl: blackMoves.length ? (blackMoves.reduce((s,m) => s + m.cpLoss, 0) / blackMoves.length).toFixed(2) : 0
+            }
+        }
+    };
+}

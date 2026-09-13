@@ -36,7 +36,7 @@
 <!-- ═══════════ BOT SETUP ═══════════ -->
 <div id="bot-setup" class="view hidden">
     <div class="setup-container">
-        <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+        <button class="btn-back btn btn-back-visible" data-i18n="back">← Retour</button>
 
         <h2 data-i18n="selectTime">Choisir le temps</h2>
         <div class="time-buttons" id="bot-time-buttons">
@@ -54,16 +54,19 @@
             <button class="difficulty-btn btn btn-large" data-difficulty="easy">
                 <span class="diff-emoji">😊</span>
                 <span class="diff-label" data-i18n="easy">Facile</span>
+                <span class="diff-elo">~600 ELO</span>
                 <span class="diff-stars">⭐</span>
             </button>
             <button class="difficulty-btn btn btn-large" data-difficulty="medium">
                 <span class="diff-emoji">🤔</span>
                 <span class="diff-label" data-i18n="medium">Moyen</span>
+                <span class="diff-elo">~1200 ELO</span>
                 <span class="diff-stars">⭐⭐</span>
             </button>
             <button class="difficulty-btn btn btn-large" data-difficulty="hard">
                 <span class="diff-emoji">🧠</span>
                 <span class="diff-label" data-i18n="hard">Difficile</span>
+                <span class="diff-elo">~1500 ELO</span>
                 <span class="diff-stars">⭐⭐⭐</span>
             </button>
         </div>
@@ -73,7 +76,7 @@
 <!-- ═══════════ ONLINE SETUP ═══════════ -->
 <div id="online-setup" class="view hidden">
     <div class="setup-container">
-        <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+        <button class="btn-back btn btn-back-visible" data-i18n="back">← Retour</button>
         <h2 data-i18n="playOnline">Jouer en ligne</h2>
 
         <div id="online-form" class="online-form">
@@ -131,25 +134,16 @@
 <!-- ═══════════ RULES PAGE ═══════════ -->
 <div id="rules-page" class="view hidden">
     <div class="rules-container">
-        <button class="btn-back btn btn-ghost" data-i18n="back">← Retour</button>
+        <button class="btn-back btn btn-back-visible" data-i18n="back">← Retour</button>
         <h2 data-i18n="rulesTitle">Comment jouer</h2>
         <p class="rules-intro" data-i18n="rulesIntro">HangingChess combine trois jeux classiques en une expérience stratégique unique.</p>
 
         <div class="rules-section">
             <h3 data-i18n="rulesTurnTitle">Déroulement d'un tour</h3>
             <div class="rules-steps">
-                <div class="rule-step">
-                    <div class="step-icon">♟️</div>
-                    <p data-i18n="rulesTurn1">1. Jouez un coup d'échecs (obligatoire)</p>
-                </div>
-                <div class="rule-step">
-                    <div class="step-icon">⭕</div>
-                    <p data-i18n="rulesTurn2">2. Si vous capturez une pièce → placez un pion au morpion</p>
-                </div>
-                <div class="rule-step">
-                    <div class="step-icon">📝</div>
-                    <p data-i18n="rulesTurn3">3. Devinez une lettre au pendu (optionnel)</p>
-                </div>
+                <div class="rule-step"><div class="step-icon">♟️</div><p data-i18n="rulesTurn1">1. Jouez un coup d'échecs (obligatoire)</p></div>
+                <div class="rule-step"><div class="step-icon">⭕</div><p data-i18n="rulesTurn2">2. Si vous capturez une pièce → placez un pion au morpion</p></div>
+                <div class="rule-step"><div class="step-icon">📝</div><p data-i18n="rulesTurn3">3. Devinez une lettre au pendu (optionnel)</p></div>
             </div>
         </div>
 
@@ -178,19 +172,18 @@
 <!-- ═══════════ GAME PAGE ═══════════ -->
 <div id="game-page" class="view hidden">
     <div class="game-header">
+        <button id="btn-home" class="btn btn-ghost btn-home" onclick="goHome()">🏠</button>
+        <div id="status-bar" class="status-bar"></div>
         <div class="game-controls">
             <button id="btn-game-sound" class="btn btn-ghost btn-small">🔊</button>
+            <button id="btn-skip-hangman" class="btn btn-accent btn-small hidden" data-i18n="skip">Passer</button>
             <button id="btn-resign" class="btn btn-danger btn-small" data-i18n="resign">Abandonner</button>
-            <button id="btn-skip-hangman" class="btn btn-ghost btn-small hidden" data-i18n="skip">Passer</button>
         </div>
-        <div id="status-bar" class="status-bar"></div>
     </div>
 
     <div class="game-container">
-        <!-- LEFT: HANGMAN -->
         <div class="game-panel hangman-panel">
             <h3 class="panel-title">📝 <span data-i18n="hangman">Pendu</span></h3>
-
             <div class="hangman-section">
                 <h4 data-i18n="yourHangman">Votre mot</h4>
                 <svg id="hangman-svg" viewBox="0 0 140 150" class="hangman-drawing"></svg>
@@ -199,7 +192,6 @@
                 <div id="hangman-status" class="hangman-status"></div>
                 <div id="hangman-keyboard" class="hangman-keyboard"></div>
             </div>
-
             <div class="hangman-section opponent-hangman">
                 <h4 data-i18n="opponentHangman">Mot adverse</h4>
                 <svg id="opponent-hangman-svg" viewBox="0 0 140 150" class="hangman-drawing small"></svg>
@@ -208,15 +200,14 @@
             </div>
         </div>
 
-        <!-- CENTER: CHESS -->
         <div class="game-panel chess-panel">
             <h3 class="panel-title">♟️ <span data-i18n="chess">Échecs</span></h3>
-            <div id="clock-top" class="clock clock-opponent">
+            <div id="clock-top" class="clock hidden">
                 <span class="clock-label" id="clock-top-label"></span>
                 <span class="clock-time" id="clock-top-time"></span>
             </div>
             <div id="chess-board" class="chess-board"></div>
-            <div id="clock-bottom" class="clock clock-player">
+            <div id="clock-bottom" class="clock hidden">
                 <span class="clock-label" id="clock-bottom-label"></span>
                 <span class="clock-time" id="clock-bottom-time"></span>
             </div>
@@ -226,19 +217,16 @@
             </div>
         </div>
 
-        <!-- RIGHT: TIC-TAC-TOE -->
         <div class="game-panel ttt-panel">
             <h3 class="panel-title">⭕ <span data-i18n="tictactoe">Morpion</span></h3>
             <div id="ttt-board" class="ttt-board"></div>
             <div id="ttt-score" class="ttt-score"></div>
-            <div class="ttt-info">
-                <p class="ttt-hint" data-i18n="rulesStrat3">⚡ Capturez des pièces aux échecs pour jouer ici</p>
-            </div>
+            <div class="ttt-info"><p class="ttt-hint" data-i18n="rulesStrat3">⚡ Capturez des pièces aux échecs pour jouer ici</p></div>
         </div>
     </div>
 </div>
 
-<!-- ═══════════ GAME OVER PAGE ═══════════ -->
+<!-- ═══════════ GAME OVER ═══════════ -->
 <div id="game-over-page" class="view hidden">
     <div class="game-over-container">
         <h1 id="game-over-title" class="game-over-title"></h1>
@@ -246,7 +234,7 @@
         <div class="game-over-buttons">
             <button id="btn-rematch" class="btn btn-primary btn-large" data-i18n="rematch">Revanche</button>
             <button id="btn-analysis" class="btn btn-secondary btn-large" data-i18n="analysis">📊 Analyse</button>
-            <button id="btn-new-game" class="btn btn-outline btn-large" data-i18n="newGame">Nouvelle partie</button>
+            <button id="btn-new-game" class="btn btn-outline btn-large" data-i18n="newGame">🏠 Menu principal</button>
         </div>
     </div>
 </div>
@@ -255,10 +243,34 @@
 <div id="analysis-page" class="view hidden">
     <div class="analysis-container">
         <div class="analysis-header">
-            <button id="btn-back-analysis" class="btn btn-ghost" data-i18n="back">← Retour</button>
+            <button id="btn-back-analysis" class="btn btn-back-visible" data-i18n="back">← Retour</button>
             <h2 data-i18n="analysisTitle">Analyse de la partie</h2>
-            <button id="btn-new-game-analysis" class="btn btn-ghost" data-i18n="newGame">Nouvelle partie</button>
+            <button id="btn-new-game-analysis" class="btn btn-back-visible" data-i18n="newGame">🏠 Menu</button>
         </div>
+
+        <!-- Move-by-move replay -->
+        <div class="analysis-replay-section">
+            <h3 data-i18n="moveByMove">Analyse coup par coup</h3>
+            <div class="analysis-replay">
+                <div class="analysis-board-container">
+                    <div id="analysis-board" class="chess-board analysis-board"></div>
+                </div>
+                <div class="analysis-move-info">
+                    <div id="analysis-move-header" class="analysis-move-header"></div>
+                    <div id="analysis-eval-bar" class="analysis-eval-bar"><div class="eval-fill"></div></div>
+                    <div id="analysis-move-detail" class="analysis-move-detail"></div>
+                </div>
+            </div>
+            <div class="analysis-nav">
+                <button id="btn-first" class="btn btn-ghost">⏮</button>
+                <button id="btn-prev" class="btn btn-ghost">◀</button>
+                <span id="analysis-move-counter" class="move-counter"></span>
+                <button id="btn-next" class="btn btn-ghost">▶</button>
+                <button id="btn-last" class="btn btn-ghost">⏭</button>
+            </div>
+        </div>
+
+        <!-- Summary -->
         <div id="analysis-content" class="analysis-content"></div>
     </div>
 </div>
