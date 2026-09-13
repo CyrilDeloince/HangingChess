@@ -545,8 +545,7 @@ class CombinedGame {
             this.pendingTTTPlayer = this.activeTurnColor === this.playerColor ? this.tttPlayerMark : this.tttOpponentMark;
             this.onPhaseChange('ttt');
         } else {
-            this.phase = 'hangman';
-            this.onPhaseChange('hangman');
+            this.advanceToNextTurn();
         }
 
         this.onUpdate();
@@ -577,42 +576,32 @@ class CombinedGame {
             return true;
         }
 
-        this.phase = 'hangman';
-        this.onPhaseChange('hangman');
+        this.advanceToNextTurn();
         this.onUpdate();
         return true;
     }
 
     makeHangmanGuess(letter) {
-        if (this.gameOver || this.phase !== 'hangman') return null;
-
-        const hangman = this.getHangmanForCurrentPhase();
-        if (hangman.isFinished()) {
-            this.advanceToNextTurn();
-            return null;
-        }
+        if (this.gameOver) return null;
+        const hangman = this.playerHangman;
+        if (hangman.isFinished()) return null;
 
         const result = hangman.guess(letter);
         if (result === null) return null;
 
         this.moveLog.push({
             turn: this.turnNumber,
-            player: this.activeTurnColor,
+            player: this.playerColor,
             type: 'hangman',
             letter,
             correct: result
         });
 
         if (hangman.won) {
-            const isPlayerWin = this.activeTurnColor === this.playerColor;
-            this.endGame(
-                this.activeTurnColor,
-                isPlayerWin ? 'winByHangman' : 'loseByHangman'
-            );
+            this.endGame(this.playerColor, 'winByHangman');
             return result;
         }
 
-        this.advanceToNextTurn();
         this.onUpdate();
         return result;
     }
@@ -650,42 +639,40 @@ class CombinedGame {
     async botTurn() {
         if (this.gameOver || this.isPlayerTurn) return;
 
-        await sleep(400 + Math.random() * 600);
+        await sleep(250 + Math.random() * 350);
         if (this.gameOver) return;
 
         const gameCtx = { tttMoves: this.ttt.getValidMoves().length, tttBoard: this.ttt.board };
         const chessMove = getBestChessMove(this.chess, this.difficulty, gameCtx);
-        if (!chessMove) { this.skipHangman(); return; }
+        if (!chessMove) { this.advanceToNextTurn(); return; }
         const result = this.makeChessMove(chessMove.from, chessMove.to, chessMove.promotion);
         if (!result || this.gameOver) return;
 
         if (this.phase === 'ttt') {
-            await sleep(300 + Math.random() * 400);
             if (this.gameOver) return;
             const tttMove = getBestTTTMove(this.ttt, this.tttOpponentMark, this.difficulty);
             if (tttMove >= 0) {
                 this.makeTTTMove(tttMove);
             } else {
-                this.phase = 'hangman';
-                this.onPhaseChange('hangman');
+                this.advanceToNextTurn();
             }
             if (this.gameOver) return;
         }
 
-        if (this.phase === 'hangman') {
-            await sleep(300 + Math.random() * 400);
-            if (this.gameOver) return;
-            if (!this.opponentHangman.isFinished()) {
-                const letter = getBestHangmanGuess(this.opponentHangman, this.difficulty);
-                if (letter) {
-                    this.makeHangmanGuess(letter);
-                } else {
-                    this.skipHangman();
+        if (!this.opponentHangman.isFinished()) {
+            const letter = getBestHangmanGuess(this.opponentHangman, this.difficulty);
+            if (letter) {
+                const res = this.opponentHangman.guess(letter);
+                if (res !== null) {
+                    this.moveLog.push({ turn: this.turnNumber, player: this.opponentColor, type: 'hangman', letter, correct: res });
+                    this.opponentHangmanDisplay = this.opponentHangman.getDisplay();
+                    if (this.opponentHangman.won) {
+                        this.endGame(this.opponentColor, 'loseByHangman');
+                    }
                 }
-            } else {
-                this.skipHangman();
             }
         }
+        this.onUpdate();
     }
 
     getAnalysis() {
@@ -805,18 +792,48 @@ function analyzePositions(positions, chessMoves) {
 
         const isFr = currentLang === 'fr';
         let comment = '';
-        if (chessMoves[i].checkmate) comment = isFr ? 'Échec et mat ! Coup décisif.' : 'Checkmate! Decisive blow.';
-        else if (chessMoves[i].check) comment = (quality === 'good' || quality === 'brilliant')
-            ? (isFr ? 'Échec puissant !' : 'Strong check!')
-            : (isFr ? 'Échec, mais de meilleures options existaient.' : 'Check, but there may have been better options.');
-        else if (chessMoves[i].captured) comment = (quality === 'good' || quality === 'brilliant')
-            ? (isFr ? 'Bonne capture, avantage matériel.' : 'Good capture, material advantage.')
-            : (isFr ? 'Capture, mais coût positionnel.' : 'Capture, but positional cost.');
-        else if (quality === 'brilliant') comment = isFr ? 'Coup positionnel excellent !' : 'Excellent positional move!';
-        else if (quality === 'good') comment = isFr ? 'Coup solide.' : 'Solid move.';
-        else if (quality === 'inaccuracy') comment = isFr ? 'Légère imprécision, un meilleur coup existait.' : 'Slight imprecision, a better move was available.';
-        else if (quality === 'mistake') comment = isFr ? 'Ce coup perd du matériel ou de la position.' : 'This move loses material or position.';
-        else if (quality === 'blunder') comment = isFr ? 'Erreur critique ! Avantage significatif perdu.' : 'Critical error! Significant advantage lost.';
+        const moveSan = chessMoves[i].move;
+        if (chessMoves[i].checkmate) {
+            comment = isFr
+                ? `${moveSan} — Échec et mat ! Le coup décisif qui conclut la partie. La position adverse était sans issue.`
+                : `${moveSan} — Checkmate! The decisive blow. The opponent's position was hopeless.`;
+        } else if (chessMoves[i].check && (quality === 'good' || quality === 'brilliant')) {
+            comment = isFr
+                ? `Échec puissant ! Ce coup force l'adversaire à réagir et maintient la pression sur son roi.`
+                : `Strong check! This move forces the opponent to react and keeps pressure on their king.`;
+        } else if (chessMoves[i].check) {
+            comment = isFr
+                ? `Échec, mais un coup plus ambitieux existait. L'échec n'est pas toujours le meilleur coup — cherchez les menaces concrètes.`
+                : `Check, but a more ambitious move existed. Checks aren't always best — look for concrete threats.`;
+        } else if (chessMoves[i].captured && (quality === 'good' || quality === 'brilliant')) {
+            comment = isFr
+                ? `Bonne capture ! Gain matériel qui renforce votre position. N'oubliez pas : chaque capture débloque aussi le morpion !`
+                : `Good capture! Material gain that strengthens your position. Remember: every capture also unlocks Tic-Tac-Toe!`;
+        } else if (chessMoves[i].captured) {
+            comment = isFr
+                ? `Cette capture semble logique mais coûte en position. Avant de capturer, évaluez : est-ce que je gagne vraiment du matériel ?`
+                : `This capture seems logical but has a positional cost. Before capturing, ask: am I truly gaining material?`;
+        } else if (quality === 'brilliant') {
+            comment = isFr
+                ? `Coup brillant ! Compréhension profonde de la position. Ce type de coup montre une vraie vision stratégique.`
+                : `Brilliant move! Deep understanding of the position. This shows real strategic vision.`;
+        } else if (quality === 'good') {
+            comment = isFr
+                ? `Coup solide et bien joué. Développement logique qui maintient la pression.`
+                : `Solid, well-played move. Logical development that maintains pressure.`;
+        } else if (quality === 'inaccuracy') {
+            comment = isFr
+                ? `Imprécision : un meilleur coup existait. Conseil : prenez le temps de comparer 2-3 coups candidats avant de jouer.`
+                : `Inaccuracy: a better move existed. Tip: compare 2-3 candidate moves before committing.`;
+        } else if (quality === 'mistake') {
+            comment = isFr
+                ? `Erreur ! Ce coup perd du matériel ou affaiblit votre position. Vérifiez toujours les menaces adverses avant de jouer.`
+                : `Mistake! This move loses material or weakens your position. Always check opponent threats before moving.`;
+        } else if (quality === 'blunder') {
+            comment = isFr
+                ? `Gaffe sérieuse ! Avantage significatif perdu. Avant chaque coup, demandez-vous : que va répondre l'adversaire ?`
+                : `Serious blunder! Significant advantage lost. Before each move, ask yourself: what will my opponent respond?`;
+        }
 
         results.push({
             moveIndex: i,

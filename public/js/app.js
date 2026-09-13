@@ -250,8 +250,7 @@ function initSocketIO() {
             if (!correct) { h.wrongCount++; if (h.wrongCount >= h.maxWrong) h.lost = true; playSound('hangmanWrong'); }
             else playSound('hangmanCorrect');
             if (display) game.opponentHangmanDisplay = display;
-            if (won) { h.won = true; game.endGame(game.opponentColor, 'loseByHangman'); playSound('lose'); }
-            else game.advanceToNextTurn();
+        if (won) { h.won = true; game.endGame(game.opponentColor, 'loseByHangman'); playSound('lose'); }
             renderGame();
         }
     });
@@ -453,7 +452,7 @@ function renderHangman() {
 
 function renderHangmanKeyboard(h) {
     const c = document.getElementById('hangman-keyboard'); c.innerHTML = '';
-    const canGuess = !game.gameOver && game.phase === 'hangman' && game.isPlayerTurn && !h.isFinished();
+    const canGuess = !game.gameOver && !h.isFinished();
     for (const l of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
         const btn = document.createElement('button'); btn.className = 'letter-btn'; btn.textContent = l;
         if (h.guessed.includes(l)) { btn.classList.add('guessed', h.word.includes(l) ? 'correct' : 'wrong'); btn.disabled = true; }
@@ -464,14 +463,13 @@ function renderHangmanKeyboard(h) {
 }
 
 function handleHangmanGuess(letter) {
-    if (!game || game.gameOver || game.phase !== 'hangman' || !game.isPlayerTurn) return;
+    if (!game || game.gameOver) return;
     const result = game.makeHangmanGuess(letter);
     if (result !== null) {
         playSound(result ? 'hangmanCorrect' : 'hangmanWrong');
         if (game.mode === 'online') socket.emit('hangman-guess', { letter, correct: result, won: game.playerHangman.won, display: game.playerHangman.getDisplay() });
     }
     renderGame();
-    if (game.mode === 'bot' && !game.gameOver && !game.isPlayerTurn) setTimeout(() => executeBotTurn(), 200);
 }
 
 function drawHangmanSVG(id, wrong) {
@@ -516,11 +514,8 @@ function renderClocks() {
 function renderGame() {
     if (!game) return;
     renderChessBoard(); renderTicTacToe(); renderHangman(); renderStatus(); renderMoveHistory(); renderClocks();
-    document.getElementById('btn-skip-hangman').classList.toggle('hidden', game.phase !== 'hangman' || !game.isPlayerTurn || game.gameOver);
+    document.getElementById('btn-skip-hangman').classList.add('hidden');
     document.getElementById('btn-resign').classList.toggle('hidden', game.gameOver);
-    if (!game.gameOver && game.phase === 'hangman' && game.isPlayerTurn && game.playerHangman.isFinished()) {
-        setTimeout(() => { if (game && !game.gameOver && game.phase === 'hangman' && game.isPlayerTurn) skipHangmanPhase(); }, 600);
-    }
     if (game.gameOver) showGameOver();
 }
 
