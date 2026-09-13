@@ -354,7 +354,7 @@ function getBestChessMove(chess, difficulty, gameContext) {
         return moves[Math.floor(Math.random() * moves.length)];
     }
 
-    const searchDepth = difficulty === 'hard' ? 4 : 3;
+    const searchDepth = difficulty === 'hard' ? 3 : 2;
     const isMax = chess.turn() === 'w';
     let bestMove = moves[0];
     let bestVal = isMax ? -Infinity : Infinity;
@@ -783,11 +783,14 @@ function analyzePositions(positions, chessMoves) {
         const diff = isWhite ? (evalAfter - evalBefore) : (evalBefore - evalAfter);
         const cpLoss = Math.max(0, -diff);
 
+        const isOpening = i < 8;
+        const t = isOpening ? 2.0 : 1.0;
+
         let quality, qualityIcon;
-        if (diff > 80) { quality = 'brilliant'; qualityIcon = '✨'; }
-        else if (diff >= -15) { quality = 'good'; qualityIcon = '✅'; }
-        else if (cpLoss <= 60) { quality = 'inaccuracy'; qualityIcon = '⚠️'; }
-        else if (cpLoss <= 200) { quality = 'mistake'; qualityIcon = '❌'; }
+        if (diff > 60) { quality = 'brilliant'; qualityIcon = '✨'; }
+        else if (diff >= -30 * t) { quality = 'good'; qualityIcon = '✅'; }
+        else if (cpLoss <= 100 * t) { quality = 'inaccuracy'; qualityIcon = '⚠️'; }
+        else if (cpLoss <= 300 * t) { quality = 'mistake'; qualityIcon = '❌'; }
         else { quality = 'blunder'; qualityIcon = '💀'; }
 
         const isFr = currentLang === 'fr';
